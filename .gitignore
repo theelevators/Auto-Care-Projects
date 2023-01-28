@@ -1,0 +1,6 @@
+/autocarenv
+/data_info
+/SQL
+.env
+*.csv
+/xml_utilities/__pycache__
