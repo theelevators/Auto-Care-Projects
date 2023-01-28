@@ -61,13 +61,17 @@ def set_file(obj:dict)->str:
     return f"Selected File: {file}"
 
 def validate_file(obj:dict)->str:
+    if obj['file'] == '' or obj['schema'] == '':
+        return "Please enter a valid file and schema."
     file_schema = etree.parse(obj["schema"])
     schema = etree.XMLSchema(file_schema)
     parser = etree.XMLParser(schema=schema)
     try:
         etree.parse(obj["file"], parser)
+        obj['validated'] = True
         return "Validation Complete. File has passed validation!"
     except etree.XMLSyntaxError as e:
+        obj['validated'] = False
         return e.msg
 
 # Set up gui contents
@@ -88,7 +92,7 @@ def main()->None:
 
     
     # Set up holder for files
-    obj = {"file": "", "schema": ""}
+    obj = {"file": "", "schema": "", "validated": False}
     
     button_frame = tk.Frame(root, background=LBL_COLOR)
     button_frame.pack(fill="y", side="right")
@@ -122,7 +126,7 @@ def main()->None:
     parse_button = tk.Button(
         button_frame,
         text="Import XML",
-        command=lambda: message.config(text=xml_parse(obj['file'])),
+        command=lambda: message.config(text=xml_parse(obj)),
         height=3,
         width=10,
         background=TXT_COLOR,

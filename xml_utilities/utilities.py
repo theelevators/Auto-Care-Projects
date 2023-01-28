@@ -53,21 +53,21 @@ def import_to_database(cursor: Cursor, import_rows: list, query: str) -> str:
         except Exception as err:
             return err
 
-def start_import(cursor: Cursor, tables: dict) -> None:
+def start_import(cursor: Cursor, table: dict, dataFrame: DataFrame) -> str:
 
-    for key, value in tables.items():
-        table = {key: value}
-        query = create_insert_query(table=table)
-
+    for key, value in table.items():
+        rows = prepare_insert(dataFrame, key)
+        import_row = rows.to_numpy().tolist()
+        query = create_insert_query(value)
+        
         response = import_to_database(
-            cursor=cursor, import_rows=[], query=query)
+            cursor=cursor, import_rows=import_row, query=query)
 
-        if response == "OK":
-            message = f"Import for {key} completed succesfully!"
-            print(message)
-        else:
-            message = f"An error has occurred while importing in to {key}. Error: {response}"
-            print(message)
+        if response != "OK":
+            message = f"An error has occurred while importing in {key}s. Error: {response}"
+            return message
+        
+    return f"Import succesfully completed!"
 
 def get_headers_info(element: Element, namespace: str) -> list:
     elements = []
@@ -75,7 +75,7 @@ def get_headers_info(element: Element, namespace: str) -> list:
         key = element.tag
         key = key.replace(namespace, '')
         elements.append({key: element.text})
-    print(elements)
+    return(elements)
 
 def has_sub(element:Element)->bool:
     sub_elements = [sub for sub in element]
@@ -154,20 +154,18 @@ def prepare_insert(dataFrame: DataFrame, segment: str) -> DataFrame:
     results = results.dropna(axis=1, how='all')
     return results
 
-def xml_parse(file_name: str) -> str:
+def xml_parse(obj: dict) -> str:
+    
+    if obj['validated'] == False:
+        return "File must pass validation before importing. Please validate file."
+    
     namespace = '{http://www.autocare.org}'
+    file_name = obj['file']
     tree = ET.parse(file_name)
     root = tree.getroot()
     data = create_product_list(root=root, namespace=namespace)
     dataFrame = pd.json_normalize(data)
+    cursor = conn.cursor()
 
-    for key, val in tmp_table.items():
-        rows = prepare_insert(dataFrame, key)
-        import_row = rows.to_numpy().tolist()
-        query = create_insert_query(val)
-        cursor = conn.cursor()
-        response = import_to_database(
-            cursor=cursor, import_rows=import_row, query=query)
-        print(response)
 
-    return "Import Completed!!"
+    return start_import(cursor,tmp_table,dataFrame )
