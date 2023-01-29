@@ -1,44 +1,28 @@
 import xml.etree.ElementTree as ET
 from xml.etree.ElementTree import Element
+from lxml import etree
+import tkinter as tk
+from tkinter import Tk, ttk
 from pyodbc import Cursor
-import pyodbc
 import pandas as pd
 from pandas import DataFrame
-import os
-import json
-from dotenv import load_dotenv, find_dotenv
+from tkinter import filedialog
 
-
-load_dotenv(find_dotenv())
-
-# Set Up ENV Variables
-db = os.environ["DB"]
-server = os.environ["SERVER"]
-tmp = open(os.environ["TABLES"])
-imprt = open(os.environ["IMPORT"])
-
-tmp_table = json.loads(tmp.read())
-imp_table = json.loads(imprt.read())
-
-conn = pyodbc.connect("Driver={SQL Server Native Client 11.0};"
-                      f"Server={server};"
-                      f"Database={db};"
-                      "Trusted_Connection=yes;")
 
 def create_insert_query(table: dict) -> str:
     cols = list(table.values())[0]
     table_name = list(table.keys())[0]
     cols_num = len(cols)
-    values = ['?']*cols_num
+    values = ['%?']*cols_num
     insert_cols = ''.join(str(val) + ', ' if idx < len(cols) -
                           1 else str(val) for idx, val in enumerate(cols))
     insert_values = ''.join(str(val) + ', ' if idx < len(values) -
                             1 else str(val) for idx, val in enumerate(values))
-    query = f"INSERT INTO {table_name} ({insert_cols}) VALUES ({insert_values})"
+    query = f"INSERT INTO {table_name}  VALUES ({insert_values})"
 
     return query
 
-def import_to_database(cursor: Cursor, import_rows: list, query: str) -> str:
+def import_to_database(cursor, import_rows: list, query: str) -> str:
     num_rows = len(import_rows)
     if num_rows == 1:
         try:
@@ -48,7 +32,7 @@ def import_to_database(cursor: Cursor, import_rows: list, query: str) -> str:
             return err
     else:
         try:
-            cursor.executemany(query, import_rows)
+            cursor.execute(query, import_rows)
             return "OK"
         except Exception as err:
             return err
@@ -154,7 +138,7 @@ def prepare_insert(dataFrame: DataFrame, segment: str) -> DataFrame:
     results = results.dropna(axis=1, how='all')
     return results
 
-def xml_parse(obj: dict) -> str:
+def xml_parse(obj: dict, cursor:Cursor, table:dict) -> str:
     
     if obj['validated'] == False:
         return "File must pass validation before importing. Please validate file."
@@ -165,7 +149,94 @@ def xml_parse(obj: dict) -> str:
     root = tree.getroot()
     data = create_product_list(root=root, namespace=namespace)
     dataFrame = pd.json_normalize(data)
-    cursor = conn.cursor()
+    
+    return start_import(cursor,table,dataFrame )
 
+def set_schema(obj:dict)->str:
 
-    return start_import(cursor,tmp_table,dataFrame )
+    schema = filedialog.askopenfilename(filetypes=[("Schema Files", "*.xsd")])
+    schema.replace("file:/", "")
+    obj["schema"] = schema
+
+    return f"Selected Schema: {schema}"
+
+def set_file(obj:dict)->str:
+    file = filedialog.askopenfilename(filetypes=[("XML Files", "*.xml")])
+    file.replace("file:/", "")
+    obj["file"] = file
+
+    return f"Selected File: {file}"
+
+def validate_file(obj:dict)->str:
+    if obj['file'] == '' or obj['schema'] == '':
+        return "Please enter a valid file and schema."
+    file_schema = etree.parse(obj["schema"])
+    schema = etree.XMLSchema(file_schema)
+    parser = etree.XMLParser(schema=schema)
+    try:
+        etree.parse(obj["file"], parser)
+        obj['validated'] = True
+        return "Validation Complete. File has passed validation!"
+    except etree.XMLSyntaxError as e:
+        obj['validated'] = False
+        return e.msg
+
+def main(root:tk.Tk, cursor:Cursor, table:dict,LBL_COLOR:str, TXT_COLOR:str)->None:
+
+    message_frame = ttk.Labelframe(root, text="Validation Message")
+    message_frame.pack(fill="both", expand=True, side="left")
+    message_frame.propagate(False)
+
+    message = tk.Label(
+        message_frame,
+        text="Make A Selection To Start Validation.",
+        background=LBL_COLOR,
+    )
+    message.pack(fill="both", expand=True)
+    message.propagate(False)
+    message.configure(wraplength=500)
+
+    
+    # Set up holder for files
+    obj = {"file": "", "schema": "", "validated": False}
+    
+    button_frame = tk.Frame(root, background=LBL_COLOR)
+    button_frame.pack(fill="y", side="right")
+    file_button = tk.Button(
+        button_frame,
+        text="XML File",
+        command=lambda: message.config(text=set_file(obj)),
+        height=3,
+        width=10,
+        background=TXT_COLOR,
+    )
+    file_button.pack(side="top")
+    schema_button = tk.Button(
+        button_frame,
+        text="XSD File",
+        command=lambda: message.config(text=set_schema(obj)),
+        height=3,
+        width=10,
+        background=TXT_COLOR,
+    )
+    schema_button.pack(side="top")
+    validation_button = tk.Button(
+        button_frame,
+        text="Validate",
+        command=lambda: message.config(text=validate_file(obj)),
+        height=3,
+        width=10,
+        background=TXT_COLOR,
+    )
+    validation_button.pack(side="top")
+    parse_button = tk.Button(
+        button_frame,
+        text="Import XML",
+        command=lambda: message.config(text=xml_parse(obj, cursor, table)),
+        height=3,
+        width=10,
+        background=TXT_COLOR,
+    )
+    parse_button.pack(side="bottom")
+    
+    root.mainloop()

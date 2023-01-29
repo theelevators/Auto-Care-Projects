@@ -1,16 +1,30 @@
-from lxml import etree
 import os
 import tkinter as tk
 from tkinter import ttk
-from tkinter import filedialog
 from dotenv import load_dotenv, find_dotenv
-from utilities import xml_parse
+from utilities import main
+from sqlalchemy import create_engine, select, text
+import json
 
 load_dotenv(find_dotenv())
 
 
-# Set up gui theme and size
-    
+###### Set up gui theme and size ###########
+
+db = os.environ["DB"]
+server = os.environ["SERVER"]
+tmp = open(os.environ["TABLES"])
+imprt = open(os.environ["IMPORT"])
+
+tmp_table = json.loads(tmp.read())
+imp_table = json.loads(imprt.read())
+
+engine = create_engine('mssql+pyodbc://' + server + '/' + db + '?trusted_connection=yes&driver=SQL+Server+Native+Client+11.0')
+# conn = pyodbc.connect("Driver={SQL Server Native Client 11.0};"
+#                       f"Server={server};"
+#                       f"Database={db};"
+#                       "Trusted_Connection=yes;")
+ 
 root = tk.Tk()
 
 style = ttk.Style()
@@ -44,96 +58,12 @@ style.configure(
     "TLabelframe.Label", font=FONT, background=LBL_COLOR, color=BG_COLOR
 )
 
-#Functions to handle the selected files.
-def set_schema(obj:dict)->str:
-
-    schema = filedialog.askopenfilename(filetypes=[("Schema Files", "*.xsd")])
-    schema.replace("file:/", "")
-    obj["schema"] = schema
-
-    return f"Selected Schema: {schema}"
-
-def set_file(obj:dict)->str:
-    file = filedialog.askopenfilename(filetypes=[("XML Files", "*.xml")])
-    file.replace("file:/", "")
-    obj["file"] = file
-
-    return f"Selected File: {file}"
-
-def validate_file(obj:dict)->str:
-    if obj['file'] == '' or obj['schema'] == '':
-        return "Please enter a valid file and schema."
-    file_schema = etree.parse(obj["schema"])
-    schema = etree.XMLSchema(file_schema)
-    parser = etree.XMLParser(schema=schema)
-    try:
-        etree.parse(obj["file"], parser)
-        obj['validated'] = True
-        return "Validation Complete. File has passed validation!"
-    except etree.XMLSyntaxError as e:
-        obj['validated'] = False
-        return e.msg
-
-# Set up gui contents
-def main()->None:
-
-    message_frame = ttk.Labelframe(root, text="Validation Message")
-    message_frame.pack(fill="both", expand=True, side="left")
-    message_frame.propagate(False)
-
-    message = tk.Label(
-        message_frame,
-        text="Make A Selection To Start Validation.",
-        background=LBL_COLOR,
-    )
-    message.pack(fill="both", expand=True)
-    message.propagate(False)
-    message.configure(wraplength=500)
-
-    
-    # Set up holder for files
-    obj = {"file": "", "schema": "", "validated": False}
-    
-    button_frame = tk.Frame(root, background=LBL_COLOR)
-    button_frame.pack(fill="y", side="right")
-    file_button = tk.Button(
-        button_frame,
-        text="XML File",
-        command=lambda: message.config(text=set_file(obj)),
-        height=3,
-        width=10,
-        background=TXT_COLOR,
-    )
-    file_button.pack(side="top")
-    schema_button = tk.Button(
-        button_frame,
-        text="XSD File",
-        command=lambda: message.config(text=set_schema(obj)),
-        height=3,
-        width=10,
-        background=TXT_COLOR,
-    )
-    schema_button.pack(side="top")
-    validation_button = tk.Button(
-        button_frame,
-        text="Validate",
-        command=lambda: message.config(text=validate_file(obj)),
-        height=3,
-        width=10,
-        background=TXT_COLOR,
-    )
-    validation_button.pack(side="top")
-    parse_button = tk.Button(
-        button_frame,
-        text="Import XML",
-        command=lambda: message.config(text=xml_parse(obj)),
-        height=3,
-        width=10,
-        background=TXT_COLOR,
-    )
-    parse_button.pack(side="bottom")
-    
-    root.mainloop()
 
 if __name__ == "__main__":
-    main()
+    
+    conn = engine.connect()
+    
+    # stmt = text('SELECT * FROM AttributeDescriptions')
+    # rows = conn.execute(stmt).fetchall()
+    # print(rows)
+    main(root,conn, tmp_table,LBL_COLOR, TXT_COLOR)
