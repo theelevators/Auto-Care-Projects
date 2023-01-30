@@ -5,6 +5,7 @@ from dotenv import load_dotenv, find_dotenv
 from utilities import main
 from sqlalchemy import create_engine, select, text
 import json
+import pyodbc
 
 load_dotenv(find_dotenv())
 
@@ -19,11 +20,11 @@ imprt = open(os.environ["IMPORT"])
 tmp_table = json.loads(tmp.read())
 imp_table = json.loads(imprt.read())
 
-engine = create_engine('mssql+pyodbc://' + server + '/' + db + '?trusted_connection=yes&driver=SQL+Server+Native+Client+11.0')
-# conn = pyodbc.connect("Driver={SQL Server Native Client 11.0};"
-#                       f"Server={server};"
-#                       f"Database={db};"
-#                       "Trusted_Connection=yes;")
+# engine = create_engine('mssql+pyodbc://' + server + '/' + db + '?trusted_connection=yes&driver=SQL+Server+Native+Client+11.0')
+conn = pyodbc.connect("Driver={SQL Server Native Client 11.0};"
+                      f"Server={server};"
+                      f"Database={db};"
+                      "Trusted_Connection=yes;")
  
 root = tk.Tk()
 
@@ -61,9 +62,10 @@ style.configure(
 
 if __name__ == "__main__":
     
-    conn = engine.connect()
+    cursor = conn.cursor()
     
-    # stmt = text('SELECT * FROM AttributeDescriptions')
+    # stmt = text('SELECT * FROM PiesImportHistory')
     # rows = conn.execute(stmt).fetchall()
     # print(rows)
-    main(root,conn, tmp_table,LBL_COLOR, TXT_COLOR)
+    main(root,cursor, tmp_table,
+         imp_table, LBL_COLOR, TXT_COLOR)
